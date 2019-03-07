@@ -1559,6 +1559,130 @@ class TestNoCoalesceSetForPeriod(SetForPeriodSetup, TestCase):
              '2010-04-29 00:00:00 to 2010-04-29 12:00:00'),
         )
 
+    def test_xxx(self):
+        # existing:  |-(v)--|--(v)--|
+        #      new:  |-(v)----|
+        #   stored:  |-(v)----|-(v)-|
+
+            # (dt(2018, 7, 18, 23), dt(2018, 7, 19, 15), 'backfill', '49'),
+            # (dt(2018, 7, 18, 15), dt(2018, 7, 18, 23), 'datafeed', '5'),
+        #     (dt(2018, 7, 17, 23), dt(2018, 7, 18, 15), 'backfill', '49'),
+        #     (dt(2018, 7, 17, 15), dt(2018, 7, 17, 23), 'datafeed', '4'),
+# 2018-07-16 DateTimeRange(datetime.datetime(2018, 7, 16, 15, 0), datetime.datetime(2018, 7, 17, 15, 0), '[)')
+# 2018-07-17 DateTimeRange(datetime.datetime(2018, 7, 17, 15, 0), datetime.datetime(2018, 7, 18, 15, 0), '[)')
+
+
+        self.session.add_all((
+            self.Model(key='k', value='49',
+                       value_from=dt(2018, 7, 18, 23), value_to=dt(2018, 7, 19, 15)),
+            self.Model(key='k', value='5',
+                       value_from=dt(2018, 7, 18, 15), value_to=dt(2018, 7, 18, 23)),
+            self.Model(key='k', value='49',
+                       value_from=dt(2018, 7, 17, 23), value_to=dt(2018, 7, 18, 15)),
+            self.Model(key='k', value='4',
+                       value_from=dt(2018, 7, 17, 15), value_to=dt(2018, 7, 17, 23)),
+        ))
+        self.session.flush()
+        m = self.Model(key='k', value='3',
+                       value_from=dt(2018, 7, 16, 15), value_to=dt(2018, 7, 17, 15))
+        m.set_for_period(self.session, coalesce=False)
+        self.session.flush()
+        m = self.Model(key='k', value='4',
+                       value_from=dt(2018, 7, 17, 15), value_to=dt(2018, 7, 18, 15))
+        m.set_for_period(self.session, coalesce=False)
+        self.session.flush()
+        self.check(
+            ('k', 'v', dt(2010, 4, 28, 0, 0), dt(2010, 4, 29, 0, 0)),
+            ('k', 'v', dt(2010, 4, 29, 0, 0), dt(2010, 4, 29, 12, 0)),
+        )
+        self.log.check(
+            ('mortar_mixins.temporal', 'INFO',
+             "key='k' changed period from 2010-04-28 00:00:00 to 2010-04-28 12:00:00 to "
+             '2010-04-28 00:00:00 to 2010-04-29 00:00:00'),
+            ('mortar_mixins.temporal', 'INFO',
+             "key='k' changed period from 2010-04-28 12:00:00 to 2010-04-29 12:00:00 to "
+             '2010-04-29 00:00:00 to 2010-04-29 12:00:00'),
+        )
+
+    def test_xxx_values_same(self):
+        # existing:  |-(v)--|--(v)--|
+        #      new:  |-(v)----|
+        #   stored:  |-(v)----|-(v)-|
+
+        #     (dt(2018, 7, 17, 23), dt(2018, 7, 18, 15), 'backfill', '49'),
+        #     (dt(2018, 7, 17, 15), dt(2018, 7, 17, 23), 'datafeed', '4'),
+# 2018-07-16 DateTimeRange(datetime.datetime(2018, 7, 16, 15, 0), datetime.datetime(2018, 7, 17, 15, 0), '[)')
+# 2018-07-17 DateTimeRange(datetime.datetime(2018, 7, 17, 15, 0), datetime.datetime(2018, 7, 18, 15, 0), '[)')
+
+
+        self.session.add_all((
+            self.Model(key='k', value='v',
+                       value_from=dt(2018, 7, 17, 23), value_to=dt(2018, 7, 18, 15)),
+            self.Model(key='k', value='v',
+                       value_from=dt(2018, 7, 17, 15), value_to=dt(2018, 7, 17, 23)),
+        ))
+        self.session.flush()
+        m = self.Model(key='k', value='v',
+                       value_from=dt(2018, 7, 16, 15), value_to=dt(2018, 7, 17, 15))
+        m.set_for_period(self.session, coalesce=False)
+        self.session.flush()
+        m = self.Model(key='k', value='v',
+                       value_from=dt(2018, 7, 17, 15), value_to=dt(2018, 7, 18, 15))
+        m.set_for_period(self.session, coalesce=False)
+        self.session.flush()
+        self.check(
+            ('k', 'v', dt(2010, 4, 28, 0, 0), dt(2010, 4, 29, 0, 0)),
+            ('k', 'v', dt(2010, 4, 29, 0, 0), dt(2010, 4, 29, 12, 0)),
+        )
+        self.log.check(
+            ('mortar_mixins.temporal', 'INFO',
+             "key='k' changed period from 2010-04-28 00:00:00 to 2010-04-28 12:00:00 to "
+             '2010-04-28 00:00:00 to 2010-04-29 00:00:00'),
+            ('mortar_mixins.temporal', 'INFO',
+             "key='k' changed period from 2010-04-28 12:00:00 to 2010-04-29 12:00:00 to "
+             '2010-04-29 00:00:00 to 2010-04-29 12:00:00'),
+        )
+
+    def test_xxx_lower_less_than_upper(self):
+        # existing:  |-(v)--|--(v)--|
+        #      new:  |-(v)----|
+        #   stored:  |-(v)----|-(v)-|
+
+        #     (dt(2018, 7, 17, 23), dt(2018, 7, 18, 15), 'backfill', '49'),
+        #     (dt(2018, 7, 17, 15), dt(2018, 7, 17, 23), 'datafeed', '4'),
+# 2018-07-16 DateTimeRange(datetime.datetime(2018, 7, 16, 15, 0), datetime.datetime(2018, 7, 17, 15, 0), '[)')
+# 2018-07-17 DateTimeRange(datetime.datetime(2018, 7, 17, 15, 0), datetime.datetime(2018, 7, 18, 15, 0), '[)')
+
+
+        self.session.add_all((
+            self.Model(key='k', value='49',
+                       value_from=dt(2018, 7, 17, 23), value_to=dt(2018, 7, 18, 15)),
+            self.Model(key='k', value='4',
+                       value_from=dt(2018, 7, 17, 15), value_to=dt(2018, 7, 17, 23)),
+        ))
+        self.session.flush()
+        m = self.Model(key='k', value='3',
+                       value_from=dt(2018, 7, 16, 15), value_to=dt(2018, 7, 17, 15))
+        m.set_for_period(self.session, coalesce=False)
+        self.session.flush()
+        m = self.Model(key='k', value='4',
+                       value_from=dt(2018, 7, 17, 15), value_to=dt(2018, 7, 18, 15))
+        m.set_for_period(self.session, coalesce=False)
+        self.session.flush()
+        self.check(
+            ('k', 'v', dt(2010, 4, 28, 0, 0), dt(2010, 4, 29, 0, 0)),
+            ('k', 'v', dt(2010, 4, 29, 0, 0), dt(2010, 4, 29, 12, 0)),
+        )
+        self.log.check(
+            ('mortar_mixins.temporal', 'INFO',
+             "key='k' changed period from 2010-04-28 00:00:00 to 2010-04-28 12:00:00 to "
+             '2010-04-28 00:00:00 to 2010-04-29 00:00:00'),
+            ('mortar_mixins.temporal', 'INFO',
+             "key='k' changed period from 2010-04-28 12:00:00 to 2010-04-29 12:00:00 to "
+             '2010-04-29 00:00:00 to 2010-04-29 12:00:00'),
+        )
+
+
 class TestSetForPeriodMultiValue(Helper, TestCase):
 
     def setUp(self):
